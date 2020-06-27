@@ -9,38 +9,41 @@ from pyomo.environ import *
 from pyomo.opt import SolverFactory
 import pyomo.environ
 
-np.random.seed(1984) #replicar random
 
-#%matplotlib inline
+# defino una funcion de ayuda para subregion en el gráfico
+def func_X_Y_to_XY(f, X, Y):
+    """
+    Wrapper for f(X, Y) -> f([X, Y])
+    """
+    s = np.shape(X)
+    return f(np.vstack([X.ravel(), Y.ravel()])).reshape(*s)
 
-# Ejemplo mínimos cuadrados no lineales utilizando scipy.optimize
-beta = (0.25, 0.75, 0.5)
+# función a minimizar
+def f(X):
+    x, y = X
+    return (x - 1)**2 + (y - 1)**2
 
-# funcion modelo
-def f(x, b0, b1, b2):
-    return b0 + b1 * np.exp(-b2 * x**2)
+# minimizo la función si restricciones
+x_opt = optimize.minimize(f, (1, 1), method='BFGS').x
 
-# datos aleatorios para simular las observaciones
-xdata = np.linspace(0, 5, 50)
-y = f(xdata, *beta)
-ydata = y + 0.05 * np.random.randn(len(xdata))
+# el mínimo para las restricciones
+bnd_x1, bnd_x2 = (2, 3), (0, 2)
+x_cons_opt = optimize.minimize(f, np.array([1, 1]), method='L-BFGS-B',
+bounds=[bnd_x1, bnd_x2]).x
 
-# función residual
-def g(beta):
-    return ydata - f(xdata, *beta)
-
-# comenzamos la optimización
-beta_start = (1, 1, 1)
-beta_opt, beta_cov = optimize.leastsq(g, beta_start)
-beta_opt
-
-# graficamos
-fig, ax = plt.subplots(figsize=(10,8))
-ax.scatter(xdata, ydata)
-ax.plot(xdata, y, 'r', lw=2)
-ax.plot(xdata, f(xdata, *beta_opt), 'b', lw=2)
-ax.set_xlim(0, 5)
-ax.set_xlabel(r"$x$", fontsize=18)
-ax.set_ylabel(r"$f(x, \beta)$", fontsize=18)
-ax.set_title('Mínimos cuadrados no lineales')
+# graficando la solución
+fig, ax = plt.subplots(figsize=(10, 8))
+x_ = y_ = np.linspace(-1, 3, 100)
+X, Y = np.meshgrid(x_, y_)
+c = ax.contour(X, Y, func_X_Y_to_XY(f, X, Y), 50)
+ax.plot(x_opt[0], x_opt[1], 'b*', markersize=15)
+ax.plot(x_cons_opt[0], x_cons_opt[1], 'r*', markersize=15)
+bound_rect = plt.Rectangle((bnd_x1[0], bnd_x2[0]),
+bnd_x1[1] - bnd_x1[0], bnd_x2[1] - bnd_x2[0],
+facecolor="grey")
+ax.add_patch(bound_rect)
+ax.set_xlabel(r"$x_1$", fontsize=18)
+ax.set_ylabel(r"$x_2$", fontsize=18)
+plt.colorbar(c, ax=ax)
+ax.set_title('Optimización con restricciones')
 plt.show()
